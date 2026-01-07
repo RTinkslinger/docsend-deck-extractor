@@ -34,3 +34,6 @@ Thumbs.db
 # Project specific
 converted PDFs/*.pdf
 !converted PDFs/.gitkeep
+
+# Bundled dependencies (downloaded at build time)
+bundle/

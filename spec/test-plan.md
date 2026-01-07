@@ -2,9 +2,9 @@
 
 ## Document Info
 - **Project**: DocSend to PDF Converter (topdf)
-- **Version**: 1.1
-- **Last Updated**: 2025-01-07
-- **Changes**: Added config.py and summarizer.py tests for Phase 8
+- **Version**: 2.0
+- **Last Updated**: 2025-01-08
+- **Changes**: Removed AI summarization tests, simplified to core PDF conversion
 
 ---
 
@@ -13,16 +13,16 @@
 ### 1.1 Test Pyramid
 
 ```
-                    ┌─────────────┐
-                    │   Manual    │  ← Real DocSend links + Perplexity API
-                    │   E2E       │  ← 18 tests (E2E-01 to E2E-18)
-                    ├─────────────┤
-                    │ Integration │  ← Component combinations
-                    │   Tests     │  ← 20-25 tests
-                    ├─────────────┤
-                    │    Unit     │  ← Individual functions
-                    │    Tests    │  ← 65-75 tests
-                    └─────────────┘
+                    +-------------+
+                    |   Manual    |  <- Real DocSend links
+                    |   E2E       |  <- 8 tests
+                    +-------------+
+                    | Integration |  <- Component combinations
+                    |   Tests     |  <- 10-15 tests
+                    +-------------+
+                    |    Unit     |  <- Individual functions
+                    |    Tests    |  <- 40-50 tests
+                    +-------------+
 ```
 
 ### 1.2 Coverage Targets
@@ -78,22 +78,7 @@
 | PDF-007 | `test_pdf_size_reasonable` | 20-page PDF | <5MB |
 | PDF-008 | `test_corrupt_image` | Invalid PNG bytes | Raises PDFBuildError |
 
-### 2.4 name_extractor.py Tests
-
-| Test ID | Test Case | Description | Expected Result |
-|---------|-----------|-------------|-----------------|
-| NAME-001 | `test_title_parse_standard` | "Acme - Deck \| DocSend" | "Acme" |
-| NAME-002 | `test_title_parse_with_dash` | "Series A - Inc \| DocSend" | "Series A - Inc" |
-| NAME-003 | `test_title_parse_minimal` | "Company XYZ" | "Company XYZ" |
-| NAME-004 | `test_title_parse_empty` | "" | Returns None |
-| NAME-005 | `test_sanitize_slashes` | "Company/Inc" | "Company-Inc" |
-| NAME-006 | `test_sanitize_colons` | "Startup: AI" | "Startup - AI" |
-| NAME-007 | `test_sanitize_quotes` | 'Name "Test"' | "Name Test" |
-| NAME-008 | `test_truncate_long_name` | 200 char name | Truncated to 100 |
-| NAME-009 | `test_ocr_extraction` | Image with text | Extracts company |
-| NAME-010 | `test_duplicate_handling` | File exists | Returns "Name (1)" |
-
-### 2.5 cli.py Tests
+### 2.4 cli.py Tests
 
 | Test ID | Test Case | Description | Expected Result |
 |---------|-----------|-------------|-----------------|
@@ -106,42 +91,15 @@
 | CLI-007 | `test_name_option` | `--name "Custom"` | Name override |
 | CLI-008 | `test_output_option` | `-o ~/Desktop` | Custom output dir |
 | CLI-009 | `test_verbose_flag` | `-v` | Verbose enabled |
-| CLI-010 | `test_check_key_flag` | `topdf --check-key` | Shows key status |
-| CLI-011 | `test_reset_key_flag` | `topdf --reset-key` | Clears keys |
 
-### 2.6 config.py Tests
+### 2.5 exceptions.py Tests
 
 | Test ID | Test Case | Description | Expected Result |
 |---------|-----------|-------------|-----------------|
-| CFG-001 | `test_get_api_key_from_config` | Key in config file | Returns key |
-| CFG-002 | `test_get_api_key_from_env` | Key in ENV only | Returns key |
-| CFG-003 | `test_config_precedence` | Key in config and ENV | Returns config key |
-| CFG-004 | `test_get_api_key_missing` | No key anywhere | Returns None |
-| CFG-005 | `test_save_api_key` | Save new key | Key persisted to file |
-| CFG-006 | `test_save_creates_directory` | No config dir exists | Directory created |
-| CFG-007 | `test_clear_api_keys` | Keys exist | All keys removed |
-| CFG-008 | `test_has_api_key_true` | Key exists (config or env) | Returns True |
-| CFG-009 | `test_has_api_key_false` | No key exists | Returns False |
-| CFG-010 | `test_get_masked_key` | Full key input | Returns `sk-ant-****...****` |
-
-### 2.7 summarizer.py Tests
-
-| Test ID | Test Case | Description | Expected Result |
-|---------|-----------|-------------|-----------------|
-| SUM-001 | `test_extract_text_success` | Valid screenshots | Text extracted |
-| SUM-002 | `test_extract_text_no_tesseract` | Tesseract not installed | Raises OCRError |
-| SUM-003 | `test_extract_text_empty` | No text found in images | Raises OCRError |
-| SUM-004 | `test_max_pages_limit` | 10 screenshots input | Only first 5 processed |
-| SUM-005 | `test_call_perplexity` | Mock Perplexity API | Returns StructuredSummary |
-| SUM-006 | `test_perplexity_json_parsing` | Valid JSON response | Parses to dataclasses |
-| SUM-007 | `test_perplexity_invalid_json` | Malformed response | Raises SummaryError |
-| SUM-008 | `test_sector_validation` | Invalid sector returned | Raises SummaryError |
-| SUM-009 | `test_description_length` | Generated description | ≤200 characters |
-| SUM-010 | `test_perplexity_error` | API returns error | Raises SummaryError |
-| SUM-011 | `test_write_summary` | Valid StructuredSummary | Markdown file created |
-| SUM-012 | `test_write_summary_format` | Generated file | Contains all sections |
-| SUM-013 | `test_peers_table_format` | Funded peers output | Valid markdown table |
-| SUM-014 | `test_summarize_e2e` | Full flow (mocked API) | Returns StructuredSummary |
+| EXC-001 | `test_base_exception` | TopdfError creation | Message formatted |
+| EXC-002 | `test_invalid_url_error` | InvalidURLError | Contains URL in message |
+| EXC-003 | `test_auth_error_hierarchy` | EmailRequiredError | Is AuthenticationError |
+| EXC-004 | `test_error_message_format` | Error with cause/action | All parts included |
 
 ---
 
@@ -151,14 +109,13 @@
 
 | Test ID | Test Case | Components | Description |
 |---------|-----------|------------|-------------|
-| INT-001 | `test_scraper_to_pdf` | scraper + pdf_builder | Screenshots → PDF |
+| INT-001 | `test_scraper_to_pdf` | scraper + pdf_builder | Screenshots -> PDF |
 | INT-002 | `test_scraper_with_auth` | scraper + auth | Auth flow works |
-| INT-003 | `test_name_extraction_pipeline` | scraper + name_extractor | Title → filename |
-| INT-004 | `test_full_open_flow` | all | Open DocSend end-to-end |
-| INT-005 | `test_full_email_flow` | all + auth | Email-protected e2e |
-| INT-006 | `test_full_passcode_flow` | all + auth | Passcode-protected e2e |
-| INT-007 | `test_output_directory_creation` | cli + filesystem | Creates dir if missing |
-| INT-008 | `test_duplicate_file_handling` | converter + filesystem | Handles existing files |
+| INT-003 | `test_full_open_flow` | all | Open DocSend end-to-end |
+| INT-004 | `test_full_email_flow` | all + auth | Email-protected e2e |
+| INT-005 | `test_full_passcode_flow` | all + auth | Passcode-protected e2e |
+| INT-006 | `test_output_directory_creation` | cli + filesystem | Creates dir if missing |
+| INT-007 | `test_duplicate_file_handling` | converter + filesystem | Handles existing files |
 
 ### 3.2 Error Handling Integration
 
@@ -169,18 +126,6 @@
 | ERR-003 | `test_page_load_timeout` | Slow network | Timeout error |
 | ERR-004 | `test_document_not_found` | 404 page | Clear error msg |
 
-### 3.3 Summarization Integration
-
-| Test ID | Test Case | Components | Description |
-|---------|-----------|------------|-------------|
-| SUM-INT-001 | `test_summary_after_conversion` | converter + summarizer | Summary generated post-PDF |
-| SUM-INT-002 | `test_perplexity_analysis` | summarizer + Perplexity API | Single call analysis + peers |
-| SUM-INT-003 | `test_summary_failure_graceful` | cli + summarizer | PDF saved despite summary error |
-| SUM-INT-004 | `test_api_key_persistence` | cli + config | Key saved and loaded |
-| SUM-INT-005 | `test_check_key_flag_integration` | cli + config | `--check-key` displays key |
-| SUM-INT-006 | `test_reset_key_flag_integration` | cli + config | `--reset-key` clears key |
-| SUM-INT-007 | `test_ocr_to_summary_flow` | summarizer OCR + Perplexity | Full text→summary pipeline |
-
 ---
 
 ## 4. Manual E2E Test Cases
@@ -189,7 +134,7 @@
 
 | ID | Scenario | Preconditions | Steps | Expected Result |
 |----|----------|---------------|-------|-----------------|
-| E2E-01 | Open document | Open DocSend URL | `topdf <url>` | PDF saved with company name |
+| E2E-01 | Open document | Open DocSend URL | `topdf <url>` | PDF saved |
 | E2E-02 | Email protected | Email-gated URL | `topdf <url> -e email` | PDF saved after auth |
 | E2E-03 | Passcode protected | Passcode URL | `topdf <url> -e email -p pass` | PDF saved after auth |
 | E2E-04 | Invalid URL | None | `topdf https://google.com` | Clear error message |
@@ -197,16 +142,6 @@
 | E2E-06 | Name override | Any URL | `topdf <url> --name "Test"` | Saved as "Test.pdf" |
 | E2E-07 | Custom output | Any URL | `topdf <url> -o ~/Desktop` | Saved to Desktop |
 | E2E-08 | Duplicate name | File exists | Run twice same URL | Second file has (1) |
-| E2E-09 | Large deck | 50+ page doc | `topdf <large_url>` | All pages captured |
-| E2E-10 | Interactive prompt | Protected URL | `topdf <url>` (no flags) | Prompts for credentials |
-| E2E-11 | Generate summary | PDF converted | Answer 'y' to summary prompt | .md file created alongside PDF |
-| E2E-12 | Skip summary | PDF converted | Answer 'n' to summary prompt | Only PDF created, no .md |
-| E2E-13 | Perplexity analysis | Valid Perplexity key | Enter key, run summary | Structured analysis + peers generated |
-| E2E-14 | Persist API key | Key entered | Answer 'y' to save prompt | Key works on next run |
-| E2E-15 | Check API key | Key saved | `topdf --check-key` | Shows masked key status |
-| E2E-16 | Reset API key | Key saved | `topdf --reset-key` | Key cleared after confirm |
-| E2E-17 | API failure | Invalid Perplexity key | Enter wrong key | Warning shown, PDF still saved |
-| E2E-18 | Structured output | Full summary generated | Review .md file | Contains all sections + table |
 
 ### 4.2 Test Data Requirements
 
@@ -283,48 +218,24 @@ def temp_output_dir(tmp_path):
 @pytest.fixture
 async def mock_browser():
     """Mock Playwright browser for unit tests."""
-    # Return mock browser instance
     pass
 
 @pytest.fixture
-def mock_perplexity_key():
-    """Mock Perplexity API key for testing."""
-    return "pplx-test-key-1234567890abcdef"
-
-@pytest.fixture
-def mock_perplexity_response():
-    """Mock Perplexity API response with full structured summary."""
-    return {
-        "company": {
-            "company_name": "Acme Corp",
-            "description": "B2B SaaS providing AI-powered analytics for enterprise sales teams",
-            "has_customers": True,
-            "customer_details": "Fortune 500 logos shown",
-            "primary_sector": "enterprise_tech",
-            "secondary_sector": "fintech"
-        },
-        "funded_peers": [
-            {"company_name": "Gong", "round_type": "Series E", "amount": "$250M", "date": "Jun 2024", "description": "Revenue intelligence platform"},
-            {"company_name": "Clari", "round_type": "Series F", "amount": "$225M", "date": "Jan 2024", "description": "Revenue operations platform"}
-        ]
-    }
-
-@pytest.fixture
-def temp_config_dir(tmp_path, monkeypatch):
-    """Temporary config directory for API key tests."""
-    config_dir = tmp_path / ".config" / "topdf"
-    config_dir.mkdir(parents=True)
-    monkeypatch.setenv("HOME", str(tmp_path))
-    return config_dir
-
-@pytest.fixture
-def sample_screenshots_for_ocr():
-    """Load multiple screenshots for OCR testing."""
-    fixtures_dir = Path("tests/fixtures")
+def valid_docsend_urls():
+    """List of valid DocSend URL formats."""
     return [
-        (fixtures_dir / f"sample_page_{i}.png").read_bytes()
-        for i in range(1, 6)
-        if (fixtures_dir / f"sample_page_{i}.png").exists()
+        "https://docsend.com/view/abc123",
+        "https://www.docsend.com/view/xyz789",
+        "http://docsend.com/view/test123",
+    ]
+
+@pytest.fixture
+def invalid_urls():
+    """List of invalid URLs."""
+    return [
+        "https://google.com",
+        "https://docsend.com/other/abc",
+        "not-a-url",
     ]
 ```
 
@@ -335,7 +246,6 @@ def sample_screenshots_for_ocr():
 | `MockPage` | Simulate Playwright page |
 | `MockBrowser` | Simulate browser launch |
 | `MockResponse` | Simulate HTTP responses |
-| `MockPerplexityClient` | Simulate Perplexity API (analysis + peer search) |
 
 ---
 
@@ -366,9 +276,6 @@ jobs:
         pip install -r requirements-dev.txt
         playwright install chromium
 
-    - name: Install Tesseract
-      run: brew install tesseract
-
     - name: Run tests
       run: pytest tests/ -v --cov=topdf --cov-report=xml
 
@@ -393,18 +300,16 @@ open htmlcov/index.html
 ```
 ==================== test session starts ====================
 platform darwin -- Python 3.11.0
-collected 75 items
+collected 50 items
 
-tests/test_cli.py ........... [15%]
-tests/test_scraper.py ............. [32%]
-tests/test_auth.py ........ [43%]
-tests/test_pdf_builder.py ........ [54%]
-tests/test_name_extractor.py ........... [68%]
-tests/test_config.py .......... [81%]
-tests/test_summarizer.py .............. [99%]
-tests/test_integration.py . [100%]
+tests/test_cli.py ........... [22%]
+tests/test_scraper.py ............. [48%]
+tests/test_auth.py ........ [64%]
+tests/test_pdf_builder.py ........ [80%]
+tests/test_exceptions.py .... [88%]
+tests/test_integration.py ...... [100%]
 
-==================== 75 passed in 15.42s ====================
+==================== 50 passed in 12.52s ====================
 ```
 
 ---
@@ -444,10 +349,8 @@ tests/test_integration.py . [100%]
 | Phase 2 | Scraper unit tests | After scraper impl |
 | Phase 3 | Auth unit tests | After auth impl |
 | Phase 4 | PDF builder tests | After builder impl |
-| Phase 5 | Name extractor tests | After extractor impl |
-| Phase 6 | All integration tests | After integration |
-| Phase 7 | Full E2E suite | Before release |
-| Phase 8 | Config + Summarizer tests | After summarization impl |
+| Phase 5 | All integration tests | After integration |
+| Phase 6 | Full E2E suite | Before release |
 
 ### 10.2 Regression Testing
 

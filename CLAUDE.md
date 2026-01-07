@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**topdf** - A Python CLI tool that converts DocSend links to PDF files. Designed for investors to locally convert pitch decks while preserving privacy. Optional AI summarization generates structured company analysis (description, sectors, traction) and finds recently funded peer companies using Perplexity.
+**topdf** - A privacy-focused tool that converts DocSend links to PDF files. Designed for investors to locally convert pitch decks. Available as:
+- **CLI tool** (`topdf`) - Command-line interface
+- **Mac app** (planned) - Native macOS menu bar application with bundled dependencies
+
+Optional AI summarization generates structured company analysis and finds recently funded peer companies using Perplexity.
 
 ## Commands
 
@@ -12,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install for development
 pip install -e .
 playwright install chromium
-brew install tesseract  # macOS system dependency
+brew install tesseract  # macOS - only needed for AI summarization
 
 # Run CLI
 topdf <docsend_url>
@@ -34,40 +38,44 @@ mypy topdf/
 
 ## Architecture
 
+### CLI Architecture
 ```
 CLI (cli.py) → Converter (converter.py) → Scraper (scraper.py) → Auth (auth.py)
                                         → PDFBuilder (pdf_builder.py)
-                                        → NameExtractor (name_extractor.py)
             → [Optional] Summarizer (summarizer.py) → Config (config.py)
+```
+
+### Mac App Architecture (Planned)
+```
+Tray Icon → Main Window → Screens (Home, Progress, Auth, Complete)
+                        → ConversionWorker (QThread) → [Reuses CLI modules]
 ```
 
 **Conversion flow:**
 1. Scraper uses Playwright to open DocSend in headless Chromium
 2. Auth handler detects and fills email/passcode gates if required
 3. Scraper captures screenshots of each page
-4. NameExtractor parses page title (fallback: OCR first slide)
-5. PDFBuilder combines screenshots into PDF using img2pdf
-6. Output saved to `converted PDFs/{company_name}.pdf`
-7. [Optional] User prompted for AI summary:
-   - OCR first 5 pages → Perplexity analyzes deck + finds funded peers (single API call)
-   - Markdown file with company overview + peers table
+4. PDFBuilder combines screenshots into PDF using img2pdf
+5. Output saved to `converted PDFs/{name}.pdf` (name from `--name` flag or URL slug)
+6. [Optional] AI summary via Perplexity API
 
 ## Key Design Decisions
 
 - **Playwright over API**: DocSend renders client-side; no public download API
 - **Screenshot capture**: Preserves exact visual fidelity of slides
 - **Local-only processing**: Privacy requirement - no document data leaves machine
-- **Name extraction fallback chain**: Page title → OCR → User prompt
+- **Filename**: User-provided (`--name`) or derived from URL slug (no OCR extraction)
 
 ## Tech Stack
 
 - **playwright**: Browser automation
 - **click**: CLI framework
 - **img2pdf**: PDF generation
-- **pytesseract**: OCR for name extraction and summarization
+- **pytesseract**: OCR for summarization only (optional)
 - **rich**: Progress bars and output
 - **Pillow**: Image processing
-- **openai**: Perplexity API (uses OpenAI-compatible SDK, optional)
+- **openai**: Perplexity API (optional)
+- **PySide6**: Mac app GUI (planned)
 
 ## Exception Hierarchy
 
@@ -78,10 +86,18 @@ All custom exceptions inherit from `TopdfError` in `exceptions.py`:
 ## Specifications
 
 Detailed specs are in `spec/`:
-- `SPEC.md` - Full specification with 8-phase implementation plan
-- `architecture.md` - Component specifications and data flow
-- `requirements.md` - Functional and non-functional requirements
-- `test-plan.md` - Test cases and coverage targets
+
+**CLI specs:**
+- `spec/SPEC.md` - Full CLI specification
+- `spec/architecture.md` - Component specifications and data flow
+- `spec/requirements.md` - Functional and non-functional requirements
+- `spec/test-plan.md` - Test cases and coverage targets
+
+**Mac app specs:**
+- `spec/mac-app/SPEC.md` - Mac app specification with phased development
+- `spec/mac-app/architecture.md` - GUI components, dependency bundling
+- `spec/mac-app/requirements.md` - App-specific requirements
+- `spec/mac-app/test-plan.md` - GUI test cases
 
 **API Keys:** Stored in `~/.config/topdf/config.json` (Perplexity only)
 

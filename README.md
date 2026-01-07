@@ -1,38 +1,63 @@
-# DocSend Deck Extractor
+# DocSend to PDF
 
-A privacy-focused Python CLI tool that converts DocSend links to local PDF files. Designed for investors to save and review pitch decks locally while preserving confidentiality.
+A privacy-focused tool that converts DocSend links to local PDF files. Available as both a **CLI tool** and a **native Mac app**. Designed for investors to save and review pitch decks locally.
 
-## Features
+## Mac App
+
+The Mac app provides a simple, always-accessible interface from your menu bar.
+
+### Installation
+
+1. Download `DocSend-to-PDF-Installer-1.0.0.dmg` from Releases
+2. Drag "DocSend to PDF" to Applications
+3. Launch the app - it appears in your menu bar
+
+### Usage
+
+1. **Copy a DocSend URL** to your clipboard
+2. **Click the menu bar icon** or press **Cmd+Shift+D**
+3. The URL auto-fills from clipboard
+4. Click **Convert** - PDF saves to `converted PDFs/` folder
+
+### Features
+
+- **Menu bar app** - Always accessible, minimal footprint
+- **Global shortcut** - Cmd+Shift+D opens the app instantly
+- **Clipboard detection** - Auto-detects DocSend URLs
+- **Interactive auth** - Prompts for email/passcode when needed
+- **Random naming** - Fun cartoon character names for easy identification
+- **History** - Quick access to recent conversions
+
+### Settings
+
+Access settings via the gear icon:
+- **Save location** - Choose where PDFs are saved
+- **Start at login** - Launch when you log in
+- **Keyboard shortcut** - Configure global shortcut
+
+---
+
+## CLI Tool
+
+For automation and scripting, use the command-line interface.
+
+### Features
 
 - **Local Processing** - All PDF conversion happens on your machine; no document data leaves your computer
 - **Authentication Support** - Handles email-gated and passcode-protected DocSend links
-- **Auto-naming** - Automatically extracts company name from the document for file naming
-- **AI Summarization** (Optional) - Generates structured company analysis using Perplexity AI:
-  - Company description (≤200 characters)
-  - Sector tags (primary + secondary)
-  - Early customer traction indicators
-  - Recently funded peer companies (up to 10)
+- **Custom naming** - Name your PDFs with the `--name` flag
 
-## Installation
+### Installation
 
-### Prerequisites
+#### Prerequisites
 
 - Python 3.9+
-- Tesseract OCR (for name extraction and summarization)
 
-```bash
-# macOS
-brew install tesseract
-
-# Ubuntu/Debian
-sudo apt-get install tesseract-ocr
-```
-
-### Install the Package
+#### Install the Package
 
 ```bash
 # Clone the repository
-git clone https://github.com/RTinkslinger/docsend-deck-extractor.git
+git clone https://github.com/yourusername/docsend-deck-extractor.git
 cd docsend-deck-extractor
 
 # Install in editable mode
@@ -40,23 +65,21 @@ pip install -e .
 
 # Install Playwright browser
 playwright install chromium
-
-# Optional: Install with AI summarization support
-pip install -e ".[summarize]"
 ```
 
-## Usage
+### Usage
 
-### Basic Conversion
+#### Basic Conversion
 
 ```bash
-# Convert an open DocSend link
+# Convert a DocSend link
 topdf https://docsend.com/view/abc123
 
-# Output: converted PDFs/CompanyName.pdf
+# With custom filename
+topdf https://docsend.com/view/abc123 --name "Company Pitch Deck"
 ```
 
-### With Authentication
+#### With Authentication
 
 ```bash
 # Email-protected document
@@ -69,12 +92,9 @@ topdf https://docsend.com/view/abc123 --email investor@fund.com --passcode secre
 topdf https://docsend.com/view/abc123 -e investor@fund.com -p secret123
 ```
 
-### Custom Output
+#### Custom Output
 
 ```bash
-# Custom filename
-topdf https://docsend.com/view/abc123 --name "Acme Corp Series A"
-
 # Custom output directory
 topdf https://docsend.com/view/abc123 --output ~/Desktop/decks
 
@@ -82,31 +102,16 @@ topdf https://docsend.com/view/abc123 --output ~/Desktop/decks
 topdf https://docsend.com/view/abc123 --verbose
 ```
 
-### AI Summarization
-
-After PDF conversion, you'll be prompted to generate an AI summary. This requires a Perplexity API key.
-
-```bash
-# Check configured API keys
-topdf --check-key
-
-# Reset saved API keys
-topdf --reset-key
-```
-
-The summary is saved as a markdown file alongside the PDF (e.g., `CompanyName.md`).
-
-## CLI Options
+### CLI Options
 
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--email` | `-e` | Email for protected documents |
 | `--passcode` | `-p` | Passcode for protected documents |
-| `--name` | `-n` | Override output filename |
+| `--name` | `-n` | Custom output filename |
 | `--output` | `-o` | Output directory (default: `converted PDFs/`) |
 | `--verbose` | `-v` | Enable verbose output |
-| `--check-key` | | Show configured API keys |
-| `--reset-key` | | Clear saved API keys |
+| `--debug` | | Show browser window for debugging |
 | `--version` | | Show version |
 | `--help` | | Show help |
 
@@ -115,28 +120,16 @@ The summary is saved as a markdown file alongside the PDF (e.g., `CompanyName.md
 1. **Browser Automation** - Uses Playwright to open DocSend in headless Chromium
 2. **Authentication** - Detects and fills email/passcode gates if required
 3. **Screenshot Capture** - Captures each page as a high-quality screenshot
-4. **Name Extraction** - Parses page title (fallback: OCR first slide)
-5. **PDF Generation** - Combines screenshots into a single PDF using img2pdf
-6. **AI Summary** (Optional) - OCR first 5 pages → Perplexity analyzes deck + finds funded peers
+4. **PDF Generation** - Combines screenshots into a single PDF using img2pdf
 
 ## Architecture
 
 ```
 CLI (cli.py)
-    ↓
+    |
 Converter (converter.py)
-    ├── Scraper (scraper.py) → Auth (auth.py)
-    ├── PDFBuilder (pdf_builder.py)
-    ├── NameExtractor (name_extractor.py)
-    └── [Optional] Summarizer (summarizer.py) → Config (config.py)
-```
-
-## Configuration
-
-API keys are stored in `~/.config/topdf/config.json`. You can also use environment variables:
-
-```bash
-export PERPLEXITY_API_KEY=your-api-key
+    |-- Scraper (scraper.py) --> Auth (auth.py)
+    |-- PDFBuilder (pdf_builder.py)
 ```
 
 ## Development
@@ -165,38 +158,50 @@ mypy topdf/
 
 ```
 docsend-deck-extractor/
-├── topdf/                    # Main package
-│   ├── cli.py               # CLI entry point
-│   ├── converter.py         # Orchestrator
-│   ├── scraper.py           # Playwright scraper
-│   ├── auth.py              # Authentication handlers
-│   ├── pdf_builder.py       # Screenshot to PDF
-│   ├── name_extractor.py    # Company name extraction
-│   ├── config.py            # API key management
-│   ├── summarizer.py        # AI summarization
-│   └── exceptions.py        # Custom exceptions
-├── tests/                    # Test suite
-├── spec/                     # Specifications
-├── converted PDFs/           # Default output directory
-├── pyproject.toml           # Package configuration
-└── requirements.txt         # Dependencies
+|-- topdf/                    # Core conversion library
+|   |-- cli.py               # CLI entry point
+|   |-- converter.py         # Orchestrator
+|   |-- scraper.py           # Playwright scraper
+|   |-- auth.py              # Authentication handlers
+|   |-- pdf_builder.py       # Screenshot to PDF
+|   |-- name_extractor.py    # Filename utilities
+|   |-- exceptions.py        # Custom exceptions
+|-- topdf_app/               # Mac app GUI
+|   |-- app.py               # Application controller
+|   |-- main.py              # Entry point
+|   |-- ui/                  # UI components
+|   |   |-- screens/         # Screen widgets
+|   |   |-- tray.py          # Menu bar icon
+|   |   |-- main_window.py   # Main window
+|   |-- core/                # App core
+|       |-- worker.py        # Background workers
+|       |-- history.py       # History manager
+|       |-- names.py         # Random name generator
+|-- scripts/                 # Build scripts
+|   |-- build_app.py         # PyInstaller build
+|   |-- bundle_deps.py       # Dependency bundling
+|   |-- create_icon.py       # Icon generation
+|-- tests/                   # Test suite
+|-- spec/                    # Specifications
+|-- converted PDFs/          # Default output directory
+|-- pyproject.toml           # Package configuration
 ```
 
 ## Tech Stack
 
 - **[Playwright](https://playwright.dev/)** - Browser automation
+- **[PySide6](https://doc.qt.io/qtforpython-6/)** - Mac app GUI
 - **[Click](https://click.palletsprojects.com/)** - CLI framework
 - **[img2pdf](https://gitlab.mister-muffin.de/josch/img2pdf)** - PDF generation
-- **[pytesseract](https://github.com/madmaze/pytesseract)** - OCR
 - **[Rich](https://rich.readthedocs.io/)** - Terminal formatting
 - **[Pillow](https://pillow.readthedocs.io/)** - Image processing
+- **[PyInstaller](https://pyinstaller.org/)** - App bundling
 
 ## Privacy
 
-- Core PDF conversion is 100% local
-- Document data is only sent to AI if you explicitly opt-in to summarization
+- PDF conversion is 100% local
+- No document data is ever sent to external services
 - No logging of document content or URLs
-- API keys are stored locally only
 
 ## License
 

@@ -208,3 +208,62 @@
 - All 120 tests pass, 1 skipped (integration test)
 
 ---
+
+## Iteration 6: Documentation Update for GitHub Release
+
+**Objective:** Update all documentation files to remove AI summarization references and prepare for GitHub release
+
+**Files Modified:**
+- `README.md`
+- `RELEASE.md`
+- `spec/SPEC.md`
+- `spec/architecture.md`
+- `spec/requirements.md`
+- `spec/test-plan.md`
+
+### Changes Made:
+
+1. **README.md Complete Rewrite**
+   - Added Mac app documentation (installation, usage, features, settings)
+   - Updated CLI documentation (removed --check-key, --reset-key)
+   - Removed AI summarization, Tesseract, Perplexity references
+   - Updated architecture diagram
+   - Updated project structure
+   - Updated tech stack (removed pytesseract, openai)
+
+2. **RELEASE.md Simplified**
+   - Removed Tesseract bundling steps
+   - Removed AI summary testing checklist
+   - Updated build outputs (only Chromium bundled now)
+   - Simplified troubleshooting section
+
+3. **spec/SPEC.md Rewrite**
+   - Removed Phase 7 (AI Summarization)
+   - Reduced to 6 phases
+   - Removed FR-5 and FR-6 (summarization and API key requirements)
+   - Updated architecture diagram
+   - Simplified test cases
+
+4. **spec/architecture.md Rewrite**
+   - Removed Config and Summarizer modules
+   - Removed summarization data flow
+   - Removed Perplexity configuration section
+   - Added Mac app architecture section
+   - Updated exception hierarchy (removed SummaryError, OCRError)
+
+5. **spec/requirements.md Simplified**
+   - Removed FR-5 (AI Summarization) and FR-6 (API Key Management)
+   - Removed Tesseract from system dependencies
+   - Removed pytesseract and openai from dependencies
+   - Updated glossary (removed LLM, summarization terms)
+
+6. **spec/test-plan.md Simplified**
+   - Removed config.py and summarizer.py test sections
+   - Removed summarization integration tests
+   - Reduced E2E tests from 18 to 8
+   - Removed Tesseract installation from CI workflow
+
+### Test Results:
+- Documentation updates only, no code changes
+
+---
