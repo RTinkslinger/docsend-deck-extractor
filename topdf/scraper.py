@@ -152,6 +152,40 @@ class DocSendScraper:
         'img[class*="slide"]',
     ]
 
+    # Selectors for cookie consent banner dismiss buttons (direct page)
+    COOKIE_BANNER_SELECTORS = [
+        'button:has-text("Accept All")',
+        'button:has-text("Accept all")',
+        'button:has-text("Accept")',
+        '[data-testid="cookie-accept"]',
+        '[class*="cookie"] button[class*="accept"]',
+        '[class*="consent"] button[class*="accept"]',
+        '#onetrust-accept-btn-handler',  # OneTrust (common provider)
+        '.cc-accept',  # Cookie Consent library
+        '[aria-label*="Accept" i][aria-label*="cookie" i]',
+        '[aria-label*="Accept" i][aria-label*="consent" i]',
+    ]
+
+    # Selectors for cookie consent iframe (DocSend uses iframe-based consent)
+    COOKIE_IFRAME_SELECTORS = [
+        'iframe[title*="Cookie"]',
+        'iframe[title*="cookie"]',
+        'iframe[title*="Consent"]',
+        'iframe[title*="consent"]',
+        'iframe[title*="CCPA"]',
+        'iframe[title*="Privacy"]',
+        'iframe[title*="Dropbox"]',  # DocSend/Dropbox specific
+    ]
+
+    # Selectors for accept button INSIDE the cookie iframe
+    COOKIE_IFRAME_ACCEPT_SELECTORS = [
+        '[data-testid="accept_all_cookies_button"]',  # DocSend/Dropbox specific
+        'button:has-text("Accept all")',
+        'button:has-text("Accept All")',
+        'button:has-text("Accept")',
+        '[class*="accept"]',
+    ]
+
     # ==========================================================================
     # Initialization
     # ==========================================================================
@@ -425,6 +459,88 @@ class DocSendScraper:
         return True
 
     # ==========================================================================
+    # Cookie Banner Dismissal
+    # ==========================================================================
+
+    async def _dismiss_cookie_banner(self) -> None:
+        """Attempt to dismiss cookie consent banner if present.
+
+        Tries multiple strategies:
+        1. Find cookie iframe and click accept button inside it (DocSend uses this)
+        2. Try direct page selectors for non-iframe banners
+        3. Fall back to hiding banner elements via CSS injection
+
+        This should be called once after initial page load and auth,
+        before starting screenshot capture.
+        """
+        if not self._page:
+            return
+
+        # Strategy 1: Look for cookie consent in iframes (DocSend uses this)
+        for iframe_selector in self.COOKIE_IFRAME_SELECTORS:
+            try:
+                frame_locator = self._page.frame_locator(iframe_selector)
+                for accept_selector in self.COOKIE_IFRAME_ACCEPT_SELECTORS:
+                    try:
+                        button = frame_locator.locator(accept_selector).first
+                        if await button.is_visible(timeout=500):
+                            await button.click()
+                            await self._page.wait_for_timeout(500)
+                            if self.verbose:
+                                print(f"Dismissed cookie banner in iframe: {iframe_selector}")
+                            return
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+
+        # Strategy 2: Try direct page selectors (non-iframe banners)
+        for selector in self.COOKIE_BANNER_SELECTORS:
+            try:
+                locator = self._page.locator(selector).first
+                if await locator.is_visible(timeout=500):
+                    await locator.click()
+                    await self._page.wait_for_timeout(500)
+                    if self.verbose:
+                        print(f"Dismissed cookie banner using: {selector}")
+                    return
+            except Exception:
+                continue
+
+        # Strategy 3: Fallback - hide via CSS injection
+        try:
+            await self._page.evaluate('''() => {
+                // Hide iframes that look like cookie banners
+                document.querySelectorAll('iframe').forEach(iframe => {
+                    const title = iframe.title || '';
+                    if (title.toLowerCase().includes('cookie') ||
+                        title.toLowerCase().includes('consent') ||
+                        title.toLowerCase().includes('ccpa')) {
+                        iframe.style.display = 'none';
+                    }
+                });
+                // Hide fixed/sticky elements with cookie-related classes
+                const selectors = [
+                    '[class*="cookie"]', '[class*="consent"]',
+                    '[class*="gdpr"]', '[id*="cookie"]',
+                    '[id*="consent"]', '[class*="Cookie"]',
+                    '[class*="Consent"]'
+                ];
+                selectors.forEach(sel => {
+                    document.querySelectorAll(sel).forEach(el => {
+                        const style = window.getComputedStyle(el);
+                        if (style.position === 'fixed' || style.position === 'sticky') {
+                            el.style.display = 'none';
+                        }
+                    });
+                });
+            }''')
+            if self.verbose:
+                print("Applied CSS fallback to hide cookie banners")
+        except Exception:
+            pass
+
+    # ==========================================================================
     # Authentication
     # ==========================================================================
 
@@ -686,6 +802,9 @@ class DocSendScraper:
 
             # Handle authentication if required
             await self._handle_auth(email, passcode)
+
+            # Dismiss cookie consent banner before capturing screenshots
+            await self._dismiss_cookie_banner()
 
             # Get document metadata
             await self._page.wait_for_timeout(2000)

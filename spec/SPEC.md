@@ -358,6 +358,8 @@ playwright install chromium
 | `test_screenshot_is_png` | Screenshots are valid PNG |
 | `test_retry_on_failure` | Retry logic works |
 | `test_timeout_handling` | Timeout raises exception |
+| `test_cookie_banner_dismissed` | Cookie consent banner dismissed before capture |
+| `test_cookie_banner_css_fallback` | CSS fallback hides banner if click fails |
 
 ### auth.py Tests
 | Test Case | Description |

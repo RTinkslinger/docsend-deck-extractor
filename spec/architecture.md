@@ -188,6 +188,7 @@ class DocSendScraper:
 | `_navigate` | Go to URL with retry |
 | `_detect_auth_type` | Check for email/passcode gate |
 | `_handle_auth` | Fill authentication forms |
+| `_dismiss_cookie_banner` | Dismiss cookie consent overlays |
 | `_get_page_count` | Extract total page count |
 | `_capture_pages` | Screenshot each page |
 
@@ -309,6 +310,14 @@ class TimeoutError(TopdfError):
 | STEP 4: Auth Detection & Handling                                    |
 |   --> Detect: email gate or passcode gate                           |
 |   --> If auth required: fill form, submit, wait                     |
++----------------------------------+----------------------------------+
+                                   |
+                                   v
++---------------------------------------------------------------------+
+| STEP 4.5: Dismiss Cookie Banner                                      |
+|   --> Detect cookie consent overlay (GDPR banner)                   |
+|   --> Click "Accept All" or similar dismiss button                  |
+|   --> Fallback: inject CSS to hide known banner selectors           |
 +----------------------------------+----------------------------------+
                                    |
                                    v

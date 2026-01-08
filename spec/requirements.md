@@ -48,6 +48,14 @@
 | FR-4.4 | Support `--help` flag with usage documentation | Must Have | Help text displays |
 | FR-4.5 | Support `--version` flag | Should Have | Version number shown |
 
+### FR-5: Overlay Handling
+
+| ID | Requirement | Priority | Acceptance Criteria |
+|----|-------------|----------|---------------------|
+| FR-5.1 | Dismiss cookie consent banners before capture | Must Have | No cookie banner in screenshots |
+| FR-5.2 | Handle GDPR-style consent overlays | Must Have | Overlays dismissed or hidden |
+| FR-5.3 | Fallback to CSS hiding if click fails | Should Have | Banner hidden via style injection |
+
 ---
 
 ## 2. Non-Functional Requirements
