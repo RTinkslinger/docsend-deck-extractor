@@ -2,13 +2,15 @@
 
 A privacy-focused tool that converts DocSend links to local PDF files. Available as both a **CLI tool** and a **native Mac app**. Designed for investors to save and review pitch decks locally.
 
+Made with ❤️ by [team DeVC](https://www.devc.com)
+
 ## Mac App
 
 The Mac app provides a simple, always-accessible interface from your menu bar.
 
 ### Installation
 
-1. Download `DocSend-to-PDF-Installer-1.0.0.dmg` from Releases
+1. Download `DocSend-to-PDF-v1.1.0.dmg` from [Releases](https://github.com/RTinkslinger/docsend-deck-extractor/releases)
 2. Drag "DocSend to PDF" to Applications
 3. Launch the app - it appears in your menu bar
 
@@ -57,7 +59,7 @@ For automation and scripting, use the command-line interface.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/docsend-deck-extractor.git
+git clone https://github.com/RTinkslinger/docsend-deck-extractor.git
 cd docsend-deck-extractor
 
 # Install in editable mode
@@ -114,6 +116,14 @@ topdf https://docsend.com/view/abc123 --verbose
 | `--debug` | | Show browser window for debugging |
 | `--version` | | Show version |
 | `--help` | | Show help |
+
+## What's New in v1.1.0
+
+- **Fixed**: PDF duplicate page bug - all pages now captured correctly
+- **Fixed**: Cookie consent banner handling for international users
+- **Added**: DeVC branding with link to website
+- **Improved**: Navigation reliability for DocSend documents
+- **Improved**: Resource bundling for standalone Mac app
 
 ## How It Works
 
