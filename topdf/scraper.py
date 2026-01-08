@@ -230,12 +230,67 @@ class DocSendScraper:
     # Browser Management
     # ==========================================================================
 
+    def _get_bundled_chromium_path(self) -> Optional[str]:
+        """Get path to bundled Chromium if running as frozen app.
+
+        Returns:
+            Path to Chromium executable if bundled, None otherwise
+        """
+        import sys
+        from pathlib import Path
+
+        # Check if running as PyInstaller frozen app
+        if not getattr(sys, 'frozen', False):
+            return None
+
+        # Get the app bundle's Resources directory
+        # sys.executable is: .app/Contents/MacOS/AppName
+        app_dir = Path(sys.executable).parent.parent
+        chromium_base = app_dir / "Resources" / "chromium"
+
+        if not chromium_base.exists():
+            return None
+
+        # Find the chromium version directory (e.g., chromium-1200)
+        chromium_dirs = [d for d in chromium_base.iterdir()
+                        if d.is_dir() and d.name.startswith("chromium-")]
+
+        if not chromium_dirs:
+            return None
+
+        # Use the first chromium directory found
+        chromium_dir = chromium_dirs[0]
+
+        # Path to the actual Chrome executable on macOS
+        chrome_app = chromium_dir / "chrome-mac-arm64" / "Google Chrome for Testing.app"
+        chrome_executable = chrome_app / "Contents" / "MacOS" / "Google Chrome for Testing"
+
+        if chrome_executable.exists():
+            return str(chrome_executable)
+
+        # Fallback: try chrome-mac for Intel
+        chrome_app_intel = chromium_dir / "chrome-mac" / "Google Chrome for Testing.app"
+        chrome_executable_intel = chrome_app_intel / "Contents" / "MacOS" / "Google Chrome for Testing"
+
+        if chrome_executable_intel.exists():
+            return str(chrome_executable_intel)
+
+        return None
+
     async def _launch_browser(self) -> None:
         """Launch Playwright browser with configured viewport and user agent."""
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(
-            headless=self.headless,
-        )
+
+        # Get bundled Chromium path if running as frozen app
+        executable_path = self._get_bundled_chromium_path()
+
+        launch_options = {"headless": self.headless}
+        if executable_path:
+            launch_options["executable_path"] = executable_path
+            if self.verbose:
+                print(f"Using bundled Chromium: {executable_path}")
+
+        self._browser = await self._playwright.chromium.launch(**launch_options)
         self._context = await self._browser.new_context(
             viewport={"width": self.VIEWPORT_WIDTH, "height": self.VIEWPORT_HEIGHT},
             user_agent=(
