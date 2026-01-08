@@ -55,6 +55,10 @@ class CompleteScreen(QWidget):
         self._output_dir: Optional[Path] = None
         self._is_saved: bool = False
 
+        # Countdown timer for auto-return to home
+        self._countdown_seconds: int = 3
+        self._countdown_timer: Optional[QTimer] = None
+
         self._setup_ui()
         self._setup_animations()
 
@@ -184,11 +188,11 @@ class CompleteScreen(QWidget):
         # Spacer
         layout.addStretch()
 
-        # Convert another link (only shown after save)
-        self.another_btn = QPushButton("Convert Another")
+        # Convert another link with countdown (only shown after save)
+        self.another_btn = QPushButton("Back to home in 3...")
         self.another_btn.setStyleSheet(styles.BUTTON_TEXT_STYLE)
         self.another_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.another_btn.clicked.connect(self.convert_another_clicked.emit)
+        self.another_btn.clicked.connect(self._on_convert_another_clicked)
         self.another_btn.hide()  # Hidden until saved
         layout.addWidget(self.another_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -297,6 +301,9 @@ class CompleteScreen(QWidget):
             self.saved_section.show()
             self.another_btn.show()
 
+            # Start countdown for auto-return to home
+            self._start_countdown()
+
             # Emit signal
             self.file_saved.emit(str(final_path))
 
@@ -339,3 +346,40 @@ class CompleteScreen(QWidget):
         path = self._final_pdf_path or self._temp_pdf_path
         if path and path.exists():
             subprocess.run(["open", "-R", str(path)])
+
+    def _start_countdown(self) -> None:
+        """Start the countdown timer for auto-return to home."""
+        self._countdown_seconds = 3
+        self._update_countdown_label()
+
+        # Create and start timer
+        self._countdown_timer = QTimer(self)
+        self._countdown_timer.timeout.connect(self._on_countdown_tick)
+        self._countdown_timer.start(1000)  # 1 second interval
+
+    def _stop_countdown(self) -> None:
+        """Stop the countdown timer."""
+        if self._countdown_timer:
+            self._countdown_timer.stop()
+            self._countdown_timer = None
+
+    def _on_countdown_tick(self) -> None:
+        """Handle countdown timer tick."""
+        self._countdown_seconds -= 1
+        self._update_countdown_label()
+
+        if self._countdown_seconds <= 0:
+            self._stop_countdown()
+            self.convert_another_clicked.emit()
+
+    def _update_countdown_label(self) -> None:
+        """Update the countdown button text."""
+        if self._countdown_seconds > 0:
+            self.another_btn.setText(f"Back to home in {self._countdown_seconds}...")
+        else:
+            self.another_btn.setText("Convert Another")
+
+    def _on_convert_another_clicked(self) -> None:
+        """Handle convert another button click - stops countdown and goes home."""
+        self._stop_countdown()
+        self.convert_another_clicked.emit()

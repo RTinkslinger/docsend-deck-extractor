@@ -370,16 +370,61 @@ class DocSendScraper:
         for _ in range(page_num - 1):
             await self._click_next()
 
-    async def _click_next(self) -> bool:
+    async def _click_next(self, verify_change: bool = False, prev_screenshot: bytes = None) -> bool:
         """Click next button to advance one page.
 
+        Args:
+            verify_change: If True, verify the page actually changed
+            prev_screenshot: Previous screenshot for comparison (required if verify_change=True)
+
         Returns:
-            True if successfully navigated, False if at last page
+            True if successfully navigated (and page changed if verify_change), False otherwise
         """
         if not self._page:
             return False
 
-        # Try clicking next buttons
+        # Strategy 1: Click on document area first to ensure focus, then use keyboard
+        # DocSend uses keyboard navigation (ArrowRight) but requires focus on document
+        try:
+            # Click on the document/slide image to give it focus
+            doc_selectors = [
+                'img.preso-view',
+                'img.page-view',
+                'img[class*="preso"]',
+                'img[class*="page-view"]',
+                '.document-container img',
+                'canvas',
+            ]
+            for selector in doc_selectors:
+                try:
+                    locator = self._page.locator(selector).first
+                    if await locator.is_visible(timeout=300):
+                        await locator.click()
+                        await self._page.wait_for_timeout(200)
+                        break
+                except Exception:
+                    continue
+
+            # Now use keyboard navigation
+            await self._page.keyboard.press("ArrowRight")
+            await self._page.wait_for_timeout(800)
+
+            # Verify page actually changed by comparing screenshots
+            if verify_change and prev_screenshot:
+                new_screenshot = await self._page.screenshot(type="png")
+                if new_screenshot == prev_screenshot:
+                    if self.verbose:
+                        print("Warning: Page did not change after ArrowRight")
+                    # Don't return False yet, try other methods
+                else:
+                    return True  # Success!
+
+            return True
+        except Exception as e:
+            if self.verbose:
+                print(f"Keyboard navigation failed: {e}")
+
+        # Strategy 2: Try clicking next buttons (legacy selectors)
         for selector in self.NEXT_BUTTON_SELECTORS:
             try:
                 locator = self._page.locator(selector).first
@@ -393,11 +438,16 @@ class DocSendScraper:
             except Exception:
                 continue
 
-        # Fallback: keyboard navigation
+        # Strategy 3: Click on right side of viewport
         try:
-            await self._page.keyboard.press("ArrowRight")
-            await self._page.wait_for_timeout(800)
-            return True
+            viewport = self._page.viewport_size
+            if viewport:
+                await self._page.mouse.click(
+                    viewport["width"] - 100,
+                    viewport["height"] // 2
+                )
+                await self._page.wait_for_timeout(800)
+                return True
         except Exception:
             pass
 
@@ -835,8 +885,12 @@ class DocSendScraper:
                 screenshot = await self._capture_screenshot(page_num)
                 screenshots.append(screenshot)
 
+                # Navigate to next page
                 if page_num < page_count:
-                    await self._click_next()
+                    await self._click_next(
+                        verify_change=True,
+                        prev_screenshot=screenshot
+                    )
 
             return ScrapeResult(
                 screenshots=screenshots,

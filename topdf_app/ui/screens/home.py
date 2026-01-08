@@ -1,4 +1,4 @@
-"""Home screen with URL input and history.
+"""Home screen with URL input.
 
 The primary screen where users paste DocSend URLs to convert.
 """
@@ -6,7 +6,7 @@ The primary screen where users paste DocSend URLs to convert.
 from __future__ import annotations
 
 import re
-from typing import List, Optional
+from typing import Optional
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QFrame,
     QApplication,
-    QSizePolicy,
 )
 from PySide6.QtCore import Signal, Qt, QTimer
 
@@ -43,96 +42,16 @@ def is_valid_docsend_url(url: str) -> bool:
     return bool(DOCSEND_URL_PATTERN.match(url.strip()))
 
 
-class HistoryItemWidget(QFrame):
-    """A single history item in the list."""
-
-    clicked = Signal(str)  # pdf_path
-
-    def __init__(
-        self,
-        name: str,
-        pdf_path: str,
-        relative_time: str,
-        has_summary: bool = False,
-        parent: Optional[QWidget] = None,
-    ):
-        """Initialize history item.
-
-        Args:
-            name: Document name
-            pdf_path: Path to PDF
-            relative_time: Relative time string
-            has_summary: Whether has AI summary
-            parent: Optional parent widget
-        """
-        super().__init__(parent)
-        self._pdf_path = pdf_path
-        self._setup_ui(name, relative_time, has_summary)
-
-    def _setup_ui(self, name: str, relative_time: str, has_summary: bool) -> None:
-        """Setup the UI."""
-        self.setStyleSheet(f"""
-            QFrame {{
-                background-color: transparent;
-                border: none;
-                padding: 4px 0;
-            }}
-            QFrame:hover {{
-                background-color: {styles.COLORS['surface']};
-                border-radius: 4px;
-            }}
-        """)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(8)
-
-        # Document icon
-        icon = QLabel("\U0001F4C4")  # Page icon
-        icon.setStyleSheet("font-size: 16px;")
-        layout.addWidget(icon)
-
-        # Name
-        name_label = QLabel(name)
-        name_label.setStyleSheet(f"""
-            QLabel {{
-                color: {styles.COLORS['text_primary']};
-                font-size: {styles.FONTS['secondary_size']};
-            }}
-        """)
-        name_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        layout.addWidget(name_label, 1)
-
-        # Summary indicator
-        if has_summary:
-            summary_icon = QLabel("\u2728")
-            summary_icon.setToolTip("Has AI summary")
-            layout.addWidget(summary_icon)
-
-        # Time
-        time_label = QLabel(relative_time)
-        time_label.setStyleSheet(styles.LABEL_CAPTION_STYLE)
-        layout.addWidget(time_label)
-
-    def mousePressEvent(self, event) -> None:
-        """Handle click to open PDF."""
-        self.clicked.emit(self._pdf_path)
-        super().mousePressEvent(event)
-
-
 class HomeScreen(QWidget):
     """Home screen with URL input.
 
     Signals:
         convert_clicked: Emitted when convert button is clicked with URL
         settings_clicked: Emitted when settings button is clicked
-        history_item_clicked: Emitted when a history item is clicked
     """
 
     convert_clicked = Signal(str)  # url
     settings_clicked = Signal()
-    history_item_clicked = Signal(str)  # pdf_path
 
     def __init__(self, parent: Optional[QWidget] = None):
         """Initialize home screen.
@@ -142,9 +61,8 @@ class HomeScreen(QWidget):
         """
         super().__init__(parent)
 
-        self._clipboard_url: Optional[str] = None
+        self._toast_timer: Optional[QTimer] = None
         self._setup_ui()
-        self._setup_clipboard_detection()
 
     def _setup_ui(self) -> None:
         """Setup the UI components."""
@@ -174,42 +92,23 @@ class HomeScreen(QWidget):
         self.convert_btn.setEnabled(False)
         layout.addWidget(self.convert_btn)
 
-        # Divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet(f"background-color: {styles.COLORS['border']};")
-        divider.setFixedHeight(1)
-        layout.addWidget(divider)
+        # Flexible space
+        layout.addStretch()
 
-        # Recent section header
-        recent_header = QHBoxLayout()
-        recent_label = QLabel("Recent")
-        recent_label.setStyleSheet(styles.LABEL_SUBTITLE_STYLE)
-        recent_header.addWidget(recent_label)
-        recent_header.addStretch()
-        layout.addLayout(recent_header)
-
-        # History container
-        self.history_container = QFrame()
-        self.history_container.setStyleSheet(f"""
-            QFrame {{
-                background-color: {styles.COLORS['surface']};
-                border: 1px solid {styles.COLORS['border']};
-                border-radius: 8px;
+        # Toast message (hidden by default, shows above Quit button)
+        self.toast_label = QLabel()
+        self.toast_label.setStyleSheet(f"""
+            QLabel {{
+                background-color: {styles.COLORS['text_secondary']};
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 13px;
             }}
         """)
-        self.history_layout = QVBoxLayout(self.history_container)
-        self.history_layout.setContentsMargins(12, 12, 12, 12)
-        self.history_layout.setSpacing(4)
-
-        # Empty state label
-        self.empty_label = QLabel("No recent conversions")
-        self.empty_label.setStyleSheet(styles.LABEL_CAPTION_STYLE)
-        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.history_layout.addWidget(self.empty_label)
-
-        layout.addWidget(self.history_container)
-        layout.addStretch()
+        self.toast_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.toast_label.hide()
+        layout.addWidget(self.toast_label)
 
     def _create_header(self) -> QHBoxLayout:
         """Create the header with title and settings button.
@@ -251,12 +150,29 @@ class HomeScreen(QWidget):
 
         return header
 
-    def _create_url_input(self) -> QFrame:
-        """Create the URL input section.
+    def _create_url_input(self) -> QWidget:
+        """Create the URL input section with icon outside frame.
 
         Returns:
-            URL input frame
+            Container widget with icon and input frame
         """
+        # Container for icon + frame
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(8)
+
+        # Link icon (OUTSIDE the frame)
+        icon_label = QLabel("\U0001F517")  # Link emoji
+        icon_label.setStyleSheet(f"""
+            QLabel {{
+                color: {styles.COLORS['text_muted']};
+                font-size: 18px;
+            }}
+        """)
+        container_layout.addWidget(icon_label)
+
+        # Input frame (contains text field and paste button)
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
@@ -267,13 +183,8 @@ class HomeScreen(QWidget):
         """)
 
         layout = QHBoxLayout(frame)
-        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setContentsMargins(12, 8, 8, 8)
         layout.setSpacing(8)
-
-        # Link icon
-        icon_label = QLabel("\U0001F517")  # Link emoji
-        icon_label.setStyleSheet(f"color: {styles.COLORS['text_muted']};")
-        layout.addWidget(icon_label)
 
         # URL input
         self.url_input = QLineEdit()
@@ -289,42 +200,72 @@ class HomeScreen(QWidget):
         self.url_input.textChanged.connect(self._on_url_changed)
         layout.addWidget(self.url_input, 1)
 
-        return frame
+        # Paste button
+        self.paste_btn = QPushButton("\U0001F4CB")  # Clipboard emoji
+        self.paste_btn.setFixedSize(32, 32)
+        self.paste_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
+            }}
+            QPushButton:hover {{
+                background-color: {styles.COLORS['border']};
+            }}
+            QPushButton:pressed {{
+                background-color: {styles.COLORS['text_muted']};
+            }}
+        """)
+        self.paste_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.paste_btn.setToolTip("Paste from clipboard")
+        self.paste_btn.clicked.connect(self._on_paste_clicked)
+        layout.addWidget(self.paste_btn)
 
-    def _setup_clipboard_detection(self) -> None:
-        """Setup clipboard monitoring for DocSend URLs."""
-        # Check clipboard on focus
-        self._check_clipboard()
+        container_layout.addWidget(frame, 1)  # Frame stretches
 
-        # Setup timer for periodic clipboard checking
-        self._clipboard_timer = QTimer(self)
-        self._clipboard_timer.timeout.connect(self._check_clipboard)
-        self._clipboard_timer.start(1000)  # Check every second
+        return container
 
-    def _check_clipboard(self) -> None:
-        """Check clipboard for DocSend URLs."""
+    def _on_paste_clicked(self) -> None:
+        """Handle paste button click - paste from clipboard if valid DocSend URL."""
         clipboard = QApplication.clipboard()
         if clipboard is None:
+            self._show_toast("Could not access clipboard")
+            self.url_input.clear()
             return
 
         text = clipboard.text()
-        if text and is_valid_docsend_url(text):
-            if text != self._clipboard_url:
-                self._clipboard_url = text
-                self._show_clipboard_detected(text)
+        if text and is_valid_docsend_url(text.strip()):
+            self.url_input.setText(text.strip())
+            self.url_input.setFocus()
+        else:
+            # Clear field and show toast for invalid/missing URL
+            self.url_input.clear()
+            self._show_toast("No DocSend URL in clipboard")
 
-    def _show_clipboard_detected(self, url: str) -> None:
-        """Show clipboard detection feedback.
+    def _show_toast(self, message: str, duration_ms: int = 2500) -> None:
+        """Show a temporary toast message above the Quit button.
 
         Args:
-            url: The detected URL
+            message: Message to display
+            duration_ms: How long to show the toast (default 2.5 seconds)
         """
-        self.status_label.setText("\u2713 DocSend URL detected in clipboard")
-        self.status_label.setStyleSheet(styles.LABEL_SUCCESS_STYLE)
+        # Cancel any existing toast timer
+        if self._toast_timer is not None:
+            self._toast_timer.stop()
 
-        # Auto-fill if input is empty
-        if not self.url_input.text().strip():
-            self.url_input.setText(url)
+        self.toast_label.setText(message)
+        self.toast_label.show()
+
+        # Setup timer to hide toast
+        self._toast_timer = QTimer(self)
+        self._toast_timer.setSingleShot(True)
+        self._toast_timer.timeout.connect(self._hide_toast)
+        self._toast_timer.start(duration_ms)
+
+    def _hide_toast(self) -> None:
+        """Hide the toast message."""
+        self.toast_label.hide()
 
     def _on_url_changed(self, text: str) -> None:
         """Handle URL input text change.
@@ -348,8 +289,10 @@ class HomeScreen(QWidget):
         """Handle convert button click."""
         url = self.url_input.text().strip()
         if is_valid_docsend_url(url):
-            self.set_loading(True)
+            # Emit signal FIRST - this synchronously sets block_focus_hide
+            # flag in main_window before we disable the input
             self.convert_clicked.emit(url)
+            self.set_loading(True)
 
     def set_loading(self, loading: bool) -> None:
         """Set the loading state of the convert button.
@@ -369,7 +312,6 @@ class HomeScreen(QWidget):
     def clear_input(self) -> None:
         """Clear the URL input field."""
         self.url_input.clear()
-        self._clipboard_url = None
         self.status_label.setText("")
         self.set_loading(False)
 
@@ -380,46 +322,3 @@ class HomeScreen(QWidget):
             url: URL to set
         """
         self.url_input.setText(url)
-
-    def showEvent(self, event) -> None:
-        """Handle show event to check clipboard.
-
-        Args:
-            event: Show event
-        """
-        super().showEvent(event)
-        self._check_clipboard()
-
-    def update_history(self, entries: List[dict]) -> None:
-        """Update the history display.
-
-        Args:
-            entries: List of history entry dicts with keys:
-                - name: Document name
-                - pdf_path: Path to PDF
-                - relative_time: Relative time string
-                - has_summary: Whether has AI summary
-        """
-        # Clear existing items (except empty label)
-        while self.history_layout.count() > 1:
-            item = self.history_layout.takeAt(1)
-            if item.widget():
-                item.widget().deleteLater()
-
-        if not entries:
-            self.empty_label.show()
-            return
-
-        self.empty_label.hide()
-
-        # Add history items
-        for entry in entries[:3]:  # Show max 3 on home screen
-            item = HistoryItemWidget(
-                name=entry["name"],
-                pdf_path=entry["pdf_path"],
-                relative_time=entry["relative_time"],
-                has_summary=entry.get("has_summary", False),
-                parent=self.history_container,
-            )
-            item.clicked.connect(self.history_item_clicked.emit)
-            self.history_layout.addWidget(item)

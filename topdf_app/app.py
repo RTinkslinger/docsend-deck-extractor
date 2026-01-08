@@ -61,6 +61,9 @@ class DocSendApp(QObject):
         self.tray = TrayIcon(self)
         self.window = MainWindow()
 
+        # Set tray icon reference for dropdown positioning
+        self.window.set_tray_icon(self.tray)
+
         # Worker (will be set when conversion starts)
         self.worker: Optional[ConversionWorker] = None
         self._current_url: Optional[str] = None
@@ -91,8 +94,7 @@ class DocSendApp(QObject):
         self.window.auth_passcode_submitted.connect(self._on_auth_passcode_submitted)
         self.window.auth_cancelled.connect(self._on_auth_cancelled)
 
-        # History signals
-        self.window.history_item_clicked.connect(self._on_history_item_clicked)
+        # History signals (tray menu only - home screen no longer shows history)
         self.tray.history_item_clicked.connect(self._on_history_item_clicked)
         self.history.history_changed.connect(self._on_history_changed)
 
@@ -133,7 +135,7 @@ class DocSendApp(QObject):
 
         # Show window on first launch
         self.window.show()
-        self.window._position_near_tray()
+        self.window._position_below_tray()
 
     def _on_show_window(self) -> None:
         """Handle request to show the main window."""
@@ -146,7 +148,7 @@ class DocSendApp(QObject):
             self.window.show()
         self.window.raise_()
         self.window.activateWindow()
-        self.window._position_near_tray()
+        self.window._position_below_tray()
         bring_to_front()
 
         # Check clipboard for DocSend URL
@@ -187,6 +189,9 @@ class DocSendApp(QObject):
         Args:
             url: DocSend URL to convert
         """
+        # Block focus-based window hiding during conversion
+        self.window.set_block_focus_hide(True)
+
         # Clean up any existing worker
         if self.worker is not None:
             if self.worker.isRunning():
@@ -228,8 +233,9 @@ class DocSendApp(QObject):
         if self.worker is not None and self.worker.isRunning():
             self.worker.cancel()
             # Don't wait - let it finish in background
-            # Go back to home
-            self.state.set_state(State.HOME, force=True)
+        # Re-enable focus-based window hiding and go back to home
+        self.window.set_block_focus_hide(False)
+        self.state.set_state(State.HOME, force=True)
 
     def _on_retry_requested(self) -> None:
         """Handle retry request from error screen."""
@@ -239,6 +245,8 @@ class DocSendApp(QObject):
     def _on_convert_another(self) -> None:
         """Handle convert another request."""
         self._current_url = None
+        # Re-enable focus-based window hiding
+        self.window.set_block_focus_hide(False)
         self.state.set_state(State.HOME, force=True)
 
     def _on_progress(self, percent: int, message: str) -> None:
@@ -326,7 +334,8 @@ class DocSendApp(QObject):
         if self.worker is not None:
             self.worker.cancel_auth()
 
-        # Go back to home
+        # Re-enable focus-based window hiding and go back to home
+        self.window.set_block_focus_hide(False)
         self.state.set_state(State.HOME, force=True)
 
     def _on_complete(self, pdf_path: str, page_count: int, suggested_name: str) -> None:
@@ -465,17 +474,36 @@ class DocSendApp(QObject):
             pdf_path: Path to the PDF file
         """
         import subprocess
+        from pathlib import Path
+
+        # Check if file exists
+        if not Path(pdf_path).exists():
+            # Show notification that file was not found
+            self.tray.showMessage(
+                "File Not Found",
+                f"The PDF file no longer exists at this location.",
+                self.tray.MessageIcon.Warning,
+                3000  # Show for 3 seconds
+            )
+            return
+
         try:
             subprocess.run(["open", pdf_path], check=True)
-        except Exception:
-            pass
+        except Exception as e:
+            # Show notification on error
+            self.tray.showMessage(
+                "Could Not Open File",
+                f"Failed to open the PDF file.",
+                self.tray.MessageIcon.Warning,
+                3000
+            )
 
     def _on_history_changed(self) -> None:
         """Handle history changes - update UI."""
         self._update_history_ui()
 
     def _update_history_ui(self) -> None:
-        """Update history display in home screen and tray menu."""
+        """Update history display in tray menu."""
         entries = self.history.get_all()
 
         # Format for UI
@@ -488,11 +516,6 @@ class DocSendApp(QObject):
             }
             for entry in entries
         ]
-
-        # Update home screen
-        home_screen = self.window.screens.get("home")
-        if isinstance(home_screen, HomeScreen):
-            home_screen.update_history(formatted)
 
         # Update tray menu
         self.tray.update_history(formatted)

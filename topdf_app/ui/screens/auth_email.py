@@ -139,6 +139,14 @@ class AuthEmailScreen(QWidget):
         self.submit_btn.clicked.connect(self._on_submit)
         layout.addWidget(self.submit_btn)
 
+        # Cancel button
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setStyleSheet(styles.BUTTON_SECONDARY_STYLE)
+        self.cancel_btn.setMinimumHeight(44)
+        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel_btn.clicked.connect(self.cancel_clicked.emit)
+        layout.addWidget(self.cancel_btn)
+
     def _on_text_changed(self, text: str) -> None:
         """Handle email input change.
 
@@ -168,10 +176,12 @@ class AuthEmailScreen(QWidget):
             self.submit_btn.setText("Verifying...")
             self.email_input.setEnabled(False)
             self.back_btn.setEnabled(False)
+            self.cancel_btn.setEnabled(False)
         else:
             self.submit_btn.setText("Continue")
             self.email_input.setEnabled(True)
             self.back_btn.setEnabled(True)
+            self.cancel_btn.setEnabled(True)
             # Re-enable submit if email is valid
             self._on_text_changed(self.email_input.text())
 

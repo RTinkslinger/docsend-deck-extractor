@@ -8,45 +8,52 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor
+from PySide6.QtWidgets import QSystemTrayIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtCore import Signal, QObject
 
 
-def create_default_icon(active: bool = False) -> QIcon:
-    """Create a simple default icon programmatically.
+def get_icon_path(name: str) -> Path:
+    """Get the path to an icon resource file.
 
     Args:
-        active: If True, use active/converting color
+        name: Icon filename (e.g., 'tray_icon.png')
 
     Returns:
-        QIcon with a simple document icon
+        Path to the icon file
     """
-    size = 22  # Standard macOS menu bar icon size
-    pixmap = QPixmap(size, size)
-    pixmap.fill(QColor(0, 0, 0, 0))  # Transparent background
+    import sys
 
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    # When running as a bundled app (PyInstaller)
+    if getattr(sys, 'frozen', False):
+        # PyInstaller puts data files in the app's Resources directory
+        app_dir = Path(sys.executable).parent.parent
+        resources_dir = app_dir / "Resources" / "resources"
+        icon_path = resources_dir / name
+        if icon_path.exists():
+            return icon_path
 
-    # Draw a simple document/PDF icon
-    color = QColor("#8B5CF6") if active else QColor("#374151")  # Purple when active
-    painter.setPen(color)
-    painter.setBrush(color)
+    # When running from source
+    resources_dir = Path(__file__).parent.parent.parent / "resources"
+    return resources_dir / name
 
-    # Document body
-    painter.drawRoundedRect(4, 2, 14, 18, 2, 2)
 
-    # Folded corner (lighter)
-    painter.setBrush(QColor("#FFFFFF") if not active else QColor("#C4B5FD"))
-    corner_points = [(14, 2), (18, 6), (14, 6)]
-    from PySide6.QtGui import QPolygon
-    from PySide6.QtCore import QPoint
-    polygon = QPolygon([QPoint(x, y) for x, y in corner_points])
-    painter.drawPolygon(polygon)
+def load_tray_icon() -> QIcon:
+    """Load the tray icon from PNG files.
 
-    painter.end()
-    return QIcon(pixmap)
+    Qt automatically loads @2x version for Retina displays when
+    the base filename is provided.
+
+    Returns:
+        QIcon loaded from tray_icon.png (and tray_icon@2x.png for Retina)
+    """
+    icon_path = get_icon_path("tray_icon.png")
+    if icon_path.exists():
+        return QIcon(str(icon_path))
+    else:
+        # Fallback: return empty icon (shouldn't happen in normal operation)
+        print(f"Warning: Tray icon not found at {icon_path}")
+        return QIcon()
 
 
 class TrayIcon(QSystemTrayIcon):
@@ -73,64 +80,35 @@ class TrayIcon(QSystemTrayIcon):
         self._is_converting = False
         self._history_actions: List = []
 
-        # Set the icon
-        self._normal_icon = create_default_icon(active=False)
-        self._active_icon = create_default_icon(active=True)
-        self.setIcon(self._normal_icon)
+        # Load icon from PNG file (Qt handles @2x automatically)
+        self._icon = load_tray_icon()
+        self.setIcon(self._icon)
 
         # Set tooltip
         self.setToolTip("DocSend to PDF")
 
-        # Setup context menu
-        self._setup_menu()
+        # No context menu - we use the dropdown panel instead
+        # Context menu was causing double-popup on click
+        self.setContextMenu(None)
 
         # Connect activation signal (click on tray icon)
         self.activated.connect(self._on_activated)
 
-    def _setup_menu(self) -> None:
-        """Setup the context menu for the tray icon."""
-        menu = QMenu()
-
-        # Open action
-        open_action = menu.addAction("Open")
-        open_action.triggered.connect(self.show_window_requested.emit)
-
-        menu.addSeparator()
-
-        # History section (placeholder - will be populated dynamically)
-        self._history_menu_start = menu.addSeparator()
-
-        # Settings and Quit
-        menu.addAction("Settings...", self._on_settings)
-        menu.addSeparator()
-        quit_action = menu.addAction("Quit")
-        quit_action.triggered.connect(self._on_quit)
-
-        self.setContextMenu(menu)
-
     def _on_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         """Handle tray icon activation (click).
+
+        On macOS, we handle all activation reasons to ensure reliable response.
 
         Args:
             reason: The activation reason
         """
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            # Single click - toggle window
+        # Handle any click/activation - macOS can be inconsistent with Trigger
+        if reason in (
+            QSystemTrayIcon.ActivationReason.Trigger,
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+            QSystemTrayIcon.ActivationReason.MiddleClick,
+        ):
             self.show_window_requested.emit()
-        elif reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            # Double click - also show window
-            self.show_window_requested.emit()
-
-    def _on_settings(self) -> None:
-        """Handle settings menu action."""
-        # For now, just show the window
-        # Settings panel will be implemented later
-        self.show_window_requested.emit()
-
-    def _on_quit(self) -> None:
-        """Handle quit menu action."""
-        self.quit_requested.emit()
-        QApplication.quit()
 
     def set_converting(self, active: bool) -> None:
         """Update icon state during conversion.
@@ -139,7 +117,8 @@ class TrayIcon(QSystemTrayIcon):
             active: True if conversion is in progress
         """
         self._is_converting = active
-        self.setIcon(self._active_icon if active else self._normal_icon)
+        # TODO: Add separate active icon if visual feedback during conversion is needed
+        # For now, icon stays the same
 
     def update_history(self, history_items: List[Dict]) -> None:
         """Update the history section of the context menu.

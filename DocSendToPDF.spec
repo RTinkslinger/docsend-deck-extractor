@@ -16,6 +16,21 @@ bundle_dir = project_dir / 'bundle'
 # Collect data files
 datas = []
 
+# Add logo image for branding
+logo_dir = project_dir / 'logo image'
+if logo_dir.exists():
+    datas.append((str(logo_dir), 'logo image'))
+
+# Add tray icons
+resources_dir = project_dir / 'resources'
+if resources_dir.exists():
+    tray_icon = resources_dir / 'tray_icon.png'
+    tray_icon_2x = resources_dir / 'tray_icon@2x.png'
+    if tray_icon.exists():
+        datas.append((str(tray_icon), 'resources'))
+    if tray_icon_2x.exists():
+        datas.append((str(tray_icon_2x), 'resources'))
+
 # Add bundle directory if it exists (excluding Chromium - copied separately)
 if bundle_dir.exists():
     # Add tessdata only (Chromium will be copied manually after build)
